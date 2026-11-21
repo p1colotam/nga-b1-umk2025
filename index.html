@@ -76,6 +76,19 @@
 })();
 </script>
 <script>
+/* mở link ngoài (target=_blank) bằng trình duyệt hệ thống — chỉ trong app native */
+(function(){
+  var C=window.Capacitor;if(!C||typeof C.isNativePlatform!=='function'||!C.isNativePlatform())return;
+  var B=C.Plugins&&C.Plugins.Browser;if(!B)return;
+  document.addEventListener('click',function(ev){
+    var t=ev.target;var a=t&&t.closest?t.closest('a[target="_blank"]'):null;
+    if(!a)return;
+    var href=a.href||'';
+    if(/^https?:/i.test(href)){ev.preventDefault();B.open({url:href}).catch(function(){});}
+  },true);
+})();
+</script>
+<script>
 /* Native Android: nút cài giọng tiếng Nga + trạng thái giọng */
 (function(){
   var C=window.Capacitor;if(!C||typeof C.isNativePlatform!=='function'||!C.isNativePlatform())return;
