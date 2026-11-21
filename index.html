@@ -1,4 +1,98 @@
-<!doctype html><html lang="vi"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Tiếng Nga B1 · Luyện đề УМК 2025 · Tăng tốc 16 tuần · PC · Ngày 4</title><meta name="theme-color" content="#146b87"/><link rel="manifest" href="manifest.webmanifest"/><link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"/><link rel="apple-touch-icon" href="apple-touch-icon.png"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="default"/><meta name="apple-mobile-web-app-title" content="Nga B1"/>
+<!doctype html><html lang="vi"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Tiếng Nga B1 · Luyện đề УМК 2025 · Tăng tốc 16 tuần · PC · Ngày 4</title><meta name="theme-color" content="#146b87"/><link rel="manifest" href="manifest.webmanifest"/><link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"/><link rel="apple-touch-icon" href="apple-touch-icon.png"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-status-bar-style" content="default"/><meta name="apple-mobile-web-app-title" content="Nga B1"/><script>
+/* TTS bridge: chỉ hoạt động trong app Capacitor (Android). Trình duyệt/PWA giữ speechSynthesis thật. */
+(function(){
+  'use strict';
+  var C=window.Capacitor;
+  if(!C||typeof C.isNativePlatform!=='function'||!C.isNativePlatform())return;
+  var TTS=C.Plugins&&C.Plugins.TextToSpeech;
+  if(!TTS)return;
+  var realVoices=[],listeners={},current=null,isSpeaking=false,pendingQ=[];
+  var FALLBACK=[{default:true,lang:'ru-RU',localService:true,name:'Android Russian (hệ thống)',voiceURI:'android-ru-RU'}];
+  function clamp(x,a,b){x=Number(x);if(!isFinite(x))x=1;return Math.max(a,Math.min(b,x));}
+  function U(text){this.text=String(text==null?'':text);this.lang='';this.voice=null;this.rate=1;this.pitch=1;this.volume=1;this.onstart=null;this.onend=null;this.onerror=null;this._l={};}
+  U.prototype.addEventListener=function(t,f){(this._l[t]=this._l[t]||[]).push(f);};
+  U.prototype.removeEventListener=function(t,f){var a=this._l[t];if(a){var i=a.indexOf(f);if(i>=0)a.splice(i,1);}};
+  U.prototype.dispatchEvent=function(ev){var hs=(this._l[ev.type]||[]).slice();var oh=this['on'+ev.type];if(typeof oh==='function')hs.push(oh);for(var i=0;i<hs.length;i++){try{hs[i].call(this,ev);}catch(e){}}return true;};
+  function fire(u,type,extra){var ev;try{ev=new Event(type);}catch(e){ev={type:type};}if(extra){for(var k in extra)ev[k]=extra[k];}u.dispatchEvent(ev);}
+  function emitVoicesChanged(){var hs=(listeners['voiceschanged']||[]).slice();for(var i=0;i<hs.length;i++){try{hs[i]({type:'voiceschanged'});}catch(e){}}if(typeof synth.onvoiceschanged==='function'){try{synth.onvoiceschanged({type:'voiceschanged'});}catch(e){}}}
+  function refreshVoices(){try{TTS.getSupportedVoices().then(function(r){var vs=(r&&r.voices)||[];if(vs.length){realVoices=vs;emitVoicesChanged();}}).catch(function(){});}catch(e){}}
+  function getVoices(){return realVoices.length?realVoices:FALLBACK;}
+  function stopCurrent(){if(current)current.cancelled=true;current=null;isSpeaking=false;try{TTS.stop().catch(function(){});}catch(e){}}
+  function speak(u){
+    if(!u)return;
+    stopCurrent();
+    var rec={u:u,cancelled:false};current=rec;isSpeaking=true;
+    fire(u,'start');
+    var idx=-1;
+    if(u.voice&&realVoices.length){idx=realVoices.indexOf(u.voice);if(idx<0){for(var i=0;i<realVoices.length;i++){if(realVoices[i].voiceURI===u.voice.voiceURI||realVoices[i].name===u.voice.name){idx=i;break;}}}}
+    var opts={text:String(u.text||''),lang:(u.voice&&u.voice.lang)||u.lang||'ru-RU',rate:clamp(u.rate,0.1,3),pitch:clamp(u.pitch,0,2),volume:clamp(u.volume,0,1),queueStrategy:0};
+    if(idx>=0)opts.voice=idx;
+    attempt(opts,rec,0);
+  }
+  function attempt(opts,rec,n){
+    var pr;try{pr=TTS.speak(opts);}catch(e){fail(rec,'synthesis-failed');return;}
+    pr.then(function(){if(rec.cancelled)return;isSpeaking=false;if(current===rec)current=null;fire(rec.u,'end');drain();})
+      .catch(function(err){if(rec.cancelled)return;var msg=String((err&&(err.message||err.code))||err||'');if(/unavailable|not yet initialized/i.test(msg)&&n<20){setTimeout(function(){if(!rec.cancelled)attempt(opts,rec,n+1);},400);return;}fail(rec,'synthesis-failed');});
+  }
+  function fail(rec,code){isSpeaking=false;if(current===rec)current=null;fire(rec.u,'error',{error:code});drain();}
+  function drain(){if(pendingQ.length&&!isSpeaking){speak(pendingQ.shift());}}
+  var synth={
+    speak:function(u){if(isSpeaking){pendingQ.push(u);}else{speak(u);}},
+    cancel:function(){pendingQ.length=0;stopCurrent();},
+    pause:function(){},resume:function(){},
+    getVoices:getVoices,
+    addEventListener:function(t,f){(listeners[t]=listeners[t]||[]).push(f);},
+    removeEventListener:function(t,f){var a=listeners[t];if(a){var i=a.indexOf(f);if(i>=0)a.splice(i,1);}},
+    dispatchEvent:function(){return true;},
+    get speaking(){return isSpeaking;},get pending(){return pendingQ.length>0;},get paused(){return false;},
+    onvoiceschanged:null
+  };
+  try{Object.defineProperty(window,'speechSynthesis',{value:synth,configurable:true,writable:true});}catch(e){window.speechSynthesis=synth;}
+  window.SpeechSynthesisUtterance=U;
+  refreshVoices();setTimeout(refreshVoices,1200);setTimeout(refreshVoices,3500);setTimeout(refreshVoices,8000);
+})();
+</script>
+<script>
+/* blob download bridge: lưu file ghi âm (blob:) vào Documents/NgaB1 qua Filesystem plugin — chỉ trong app native */
+(function(){
+  var C=window.Capacitor;if(!C||typeof C.isNativePlatform!=='function'||!C.isNativePlatform())return;
+  var FS=C.Plugins&&C.Plugins.Filesystem;if(!FS)return;
+  var origClick=HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click=function(){
+    try{
+      if(this.download&&this.href&&this.href.indexOf('blob:')===0){
+        var a=this,name=a.download||'download.bin';
+        fetch(a.href).then(function(r){return r.arrayBuffer();}).then(function(buf){
+          var u=new Uint8Array(buf),s='';for(var i=0;i<u.length;i+=8192){s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));}
+          return FS.writeFile({path:'NgaB1/'+name,data:btoa(s),directory:'DOCUMENTS',recursive:true});
+        }).then(function(){
+          alert('🎙 Đã lưu "'+name+'" vào thư mục Documents/NgaB1 trên máy.');
+        }).catch(function(e){alert('Không lưu được file: '+(e.message||e));});
+        return;
+      }
+    }catch(e){}
+    return origClick.apply(this,arguments);
+  };
+})();
+</script>
+<script>
+/* Native Android: nút cài giọng tiếng Nga + trạng thái giọng */
+(function(){
+  var C=window.Capacitor;if(!C||typeof C.isNativePlatform!=='function'||!C.isNativePlatform())return;
+  var TTS=C.Plugins&&C.Plugins.TextToSpeech;if(!TTS)return;
+  function add(){
+    var p=document.getElementById('backupPanel');if(!p||document.getElementById('btnRuVoice'))return;
+    var flex=p.querySelector('.flex');if(!flex)return;
+    var b=document.createElement('button');b.className='btn';b.id='btnRuVoice';b.textContent='🗣 Cài giọng tiếng Nga (Android)';
+    b.addEventListener('click',function(){TTS.openInstall().catch(function(e){alert('Không mở được trình cài giọng: '+(e.message||e));});});
+    flex.appendChild(b);
+    var st=document.createElement('p');st.className='muted small';st.id='ruVoiceStatus';st.textContent='Đang kiểm tra giọng tiếng Nga…';
+    flex.parentNode.insertBefore(st,flex.nextSibling);
+    TTS.isLanguageSupported({lang:'ru-RU'}).then(function(r){st.textContent=r.supported?'✅ Máy đã có giọng tiếng Nga — sẵn sàng đọc offline.':'⚠️ Máy CHƯA có giọng tiếng Nga. Bấm "Cài giọng tiếng Nga" để tải dữ liệu giọng (cần mạng một lần), sau đó đọc offline bình thường.';}).catch(function(){st.textContent='Không kiểm tra được giọng tiếng Nga trên máy này.';});
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(add,400);});else setTimeout(add,400);
+})();
+</script>
 <style>
 :root{font-family:Inter,'Segoe UI',Arial,sans-serif;color:#1f2937;background:#f5f7fb;line-height:1.5;font-size:14px}*{box-sizing:border-box}body{margin:0;padding:17px}#app{max-width:1100px;margin:auto}.panel{border-radius:14px;border:1px solid #dce4ee;background:#fff;padding:16px;margin:12px 0;box-shadow:0 1px 3px #0f172a08}h1{font-size:23px;margin:0}h2{font-size:19px;margin:0 0 6px}h3{font-size:15px;margin:0 0 8px}p{margin:8px 0}.muted{color:#66758a}.small{font-size:12px}.flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}.right{text-align:right}.badge{display:inline-block;border-radius:20px;background:#e9f2fb;color:#16496d;padding:4px 9px;font-size:12px}.pill{border-radius:20px!important}.kpi{font-weight:800;font-size:20px}.progress{height:8px;border-radius:20px;background:#e8eef4;overflow:hidden;margin-top:10px}.progress div{height:100%;background:linear-gradient(90deg,#27896a,#67bd93);transition:width .3s}.btn{border:1px solid #bfcbd8;border-radius:8px;background:#fff;color:#1e344a;cursor:pointer;padding:8px 10px;font-size:13px;line-height:1.2;transition:background .1s}.btn:hover{background:#eaf2fa}.btn.primary{background:#146b87;border-color:#146b87;color:#fff}.btn.primary:hover{background:#0e5270}.btn.selected{background:#e3f3ef;border-color:#1e9674;color:#13654f}.btn:disabled{opacity:.48;cursor:not-allowed}.btn.sm{padding:5px 7px;font-size:12px}.tabrow{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.tabrow button.active{background:#146b87;color:white;border-color:#146b87}.scroll{overflow:auto;max-height:390px;border:1px solid #e3e8ef;border-radius:9px}table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:8px 8px;border-bottom:1px solid #e9edf2;vertical-align:top;text-align:left}th{position:sticky;top:0;z-index:1;background:#f0f4f8;color:#36455a}tr.active{background:#eaf6fb}td:first-child{white-space:nowrap}tr:nth-child(even){background:#fbfcfe}tr.active:nth-child(even){background:#eaf6fb}.ru{font-family:'Segoe UI',Arial,sans-serif;font-weight:650;font-size:16px;color:#173b60}.case{background:#eef4f8;padding:11px;border-radius:9px;margin:9px 0;line-height:1.65}.card{border:1px solid #dfe7f0;border-radius:10px;padding:12px;margin:9px 0}.card .ruline{font-size:17px;font-weight:650;margin-bottom:3px}.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}.reward{background:#fff8e8;border:1px solid #f4dfaa;border-radius:12px;padding:14px;margin-top:10px}.reward strong{font-size:17px}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.quiztype{display:grid;grid-template-columns:repeat(5,minmax(90px,1fr));gap:6px}.qtype{background:#f2f6fa;padding:8px;border-radius:9px;text-align:center}.qtype strong{display:block}.opt{display:block;width:100%;text-align:left;line-height:1.4;margin:5px 0}.opt.picked{background:#e7f0fa;border-color:#246a9a}.ans{background:#edf5f2;border-radius:8px;padding:10px;margin-top:10px}.wrong{color:#b24747}.correct{color:#147b59}.chips{display:flex;gap:5px;flex-wrap:wrap;min-height:39px;padding:8px;background:#f5f7fb;border:1px dashed #d8e2ec;border-radius:8px}.chips button{padding:5px 7px}.input{padding:9px 11px;border:1px solid #bac6d4;border-radius:8px;width:100%;font:inherit}#audioBar select{border:1px solid #bfcbd8;padding:7px;border-radius:8px;background:#fff;font:inherit;max-width:250px}#audio-status{color:#335a73;font-size:12px;margin-top:8px}#recStatus{font-size:12px;color:#62768c}.subtle{background:#f8fafc;border:1px solid #edf1f5;border-radius:9px;padding:10px}.flash{background:#effaf4;border:1px solid #add9c0;padding:8px;border-radius:7px;font-size:12px}.hidden{display:none!important}.footer{font-size:12px;color:#66758a;margin:20px 5px}.colWide{width:45%}@media(max-width:680px){body{padding:7px}.panel{padding:11px;margin:8px 0}h1{font-size:19px}h2{font-size:17px}.two{grid-template-columns:1fr}.quiztype{grid-template-columns:repeat(5,minmax(52px,1fr));font-size:11px}table{font-size:11px}td,th{padding:7px 4px}.colWide{width:auto}.ru{font-size:14px}.btn{font-size:12px;padding:7px 8px}}
 
@@ -424,16 +518,16 @@ if(!saved.grammarQuizMigrated){
 }
 
 const MEME_MEDIA={
-"faker_win":{"url":"https://media1.tenor.com/m/2nMF3Oq8reYAAAAd/faker-thumbs-up.gif","source":"https://tenor.com/view/faker-thumbs-up-hall-of-legends-league-of-legends-faker-smile-gif-15740931568979193318","label":"Faker giơ like"},
-"zeus_win":{"url":"https://media1.tenor.com/m/xLiOa_pN7Q8AAAAd/t1-t1-zeus.gif","source":"https://tenor.com/view/t1-t1-zeus-zeus-thumbs-up-gif-14175236421560691983","label":"Zeus giơ like"},
-"keria_win":{"url":"https://media1.tenor.com/m/YqJGcnD8izMAAAAd/keria-keria-lol.gif","source":"https://tenor.com/view/keria-keria-lol-t1-keria-keria-2025-keria-world-champion-gif-7107320619279878963","label":"Keria cười"},
-"cat_win":{"url":"https://media1.tenor.com/m/TsVXIAMBZXoAAAAd/cat-thumbs-up-thumbs-up.gif","source":"https://tenor.com/view/cat-thumbs-up-thumbs-up-cat-thumbs-up-meme-gif-5676038700371371386","label":"Mèo giơ like"},
-"cat_win2":{"url":"https://media1.tenor.com/m/yhG5h4J6fUwAAAAd/cat-thumbs-up.gif","source":"https://tenor.com/view/cat-thumbs-up-meme-gif-14560623061926313292","label":"Mèo giơ like"},
-"oner_no":{"url":"https://media1.tenor.com/m/--i9rbIreTIAAAAd/oner-t1.gif","source":"https://tenor.com/view/oner-t1-t1oner-mad-stressed-gif-26167455","label":"Oner căng thẳng"},
-"keria_no":{"url":"https://media1.tenor.com/m/QDf0veWZfsEAAAAd/t1-keria.gif","source":"https://tenor.com/view/t1-keria-t1keria-modcheck-look-around-gif-26167459","label":"Keria nhìn quanh"},
-"cat_no":{"url":"https://media1.tenor.com/m/8sY72c2gtAUAAAAd/huh-confused.gif","source":"https://tenor.com/view/huh-confused-confusedcat-cat-turning-weird-gif-17493735609211073541","label":"Mèo Huh?"},
-"cat_no2":{"url":"https://media1.tenor.com/m/IklKDJCAZHgAAAAd/confused-cat.gif","source":"https://tenor.com/view/confused-cat-surprised-omg-shocked-gif-2470587288413824120","label":"Mèo ngơ ngác"},
-"cat_cry_no":{"url":"https://media1.tenor.com/m/3sVdLaB8No0AAAAd/crying-meme.gif","source":"https://tenor.com/view/crying-meme-cats-cat-crying-cat-meme-gif-16052338897379407501","label":"Mèo khóc"}
+"faker_win":{"url":"gifs/faker-thumbs-up.gif","source":"https://tenor.com/view/faker-thumbs-up-hall-of-legends-league-of-legends-faker-smile-gif-15740931568979193318","label":"Faker giơ like"},
+"zeus_win":{"url":"gifs/t1-t1-zeus.gif","source":"https://tenor.com/view/t1-t1-zeus-zeus-thumbs-up-gif-14175236421560691983","label":"Zeus giơ like"},
+"keria_win":{"url":"gifs/keria-keria-lol.gif","source":"https://tenor.com/view/keria-keria-lol-t1-keria-keria-2025-keria-world-champion-gif-7107320619279878963","label":"Keria cười"},
+"cat_win":{"url":"gifs/cat-thumbs-up-thumbs-up.gif","source":"https://tenor.com/view/cat-thumbs-up-thumbs-up-cat-thumbs-up-meme-gif-5676038700371371386","label":"Mèo giơ like"},
+"cat_win2":{"url":"gifs/cat-thumbs-up.gif","source":"https://tenor.com/view/cat-thumbs-up-meme-gif-14560623061926313292","label":"Mèo giơ like"},
+"oner_no":{"url":"gifs/oner-t1.gif","source":"https://tenor.com/view/oner-t1-t1oner-mad-stressed-gif-26167455","label":"Oner căng thẳng"},
+"keria_no":{"url":"gifs/t1-keria.gif","source":"https://tenor.com/view/t1-keria-t1keria-modcheck-look-around-gif-26167459","label":"Keria nhìn quanh"},
+"cat_no":{"url":"gifs/huh-confused.gif","source":"https://tenor.com/view/huh-confused-confusedcat-cat-turning-weird-gif-17493735609211073541","label":"Mèo Huh?"},
+"cat_no2":{"url":"gifs/confused-cat.gif","source":"https://tenor.com/view/confused-cat-surprised-omg-shocked-gif-2470587288413824120","label":"Mèo ngơ ngác"},
+"cat_cry_no":{"url":"gifs/crying-meme.gif","source":"https://tenor.com/view/crying-meme-cats-cat-crying-cat-meme-gif-16052338897379407501","label":"Mèo khóc"}
 };
 const MEME_WINS=['faker_win','zeus_win','keria_win','cat_win','cat_win2'];
 const MEME_LOSSES=['oner_no','keria_no','cat_no','cat_no2','cat_cry_no'];
